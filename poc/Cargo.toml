@@ -6,14 +6,20 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+defmt = { version = "0.3.8" }
+embedded-io = { version = "0.6.1" }
 esp-backtrace = { version = "0.14.2", features = [
+  "defmt",
   "esp32c3",
   "exception-handler",
   "panic-handler",
-  "println",
 ] }
 esp-hal = { version = "0.21.0", features = ["esp32c3"] }
-esp-println = { version = "0.12.0", features = ["esp32c3", "log"] }
+esp-println = { version = "0.12.0", features = [
+  "defmt-espflash",
+  "esp32c3",
+  "log",
+] }
 log = { version = "0.4.22" }
 [profile.dev]
 # Rust debug is too slow.

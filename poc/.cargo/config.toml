@@ -1,5 +1,5 @@
 [target.riscv32imc-unknown-none-elf]
-runner = "espflash flash --monitor"
+runner = "espflash flash --monitor -L defmt"
 
 
 [env]
@@ -11,6 +11,8 @@ rustflags = [
   # NOTE: May negatively impact performance of produced code
   "-C",
   "force-frame-pointers",
+  "-C",
+  "link-arg=-Tdefmt.x",
 ]
 
 target = "riscv32imc-unknown-none-elf"
