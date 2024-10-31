@@ -1,26 +1,36 @@
-#![no_std]
-#![no_main]
-use embedded_io::Read;
-#[deny(clippy::mem_forget)] // core::mem::forget is dangerous on ESP32
-use esp_backtrace as _;
-use esp_hal::usb_serial_jtag::UsbSerialJtag;
-use esp_hal::{delay::Delay, prelude::*};
+use esp_idf_svc::sys::vTaskDelay;
+use std::io::{self, BufRead};
 
-const INPUT_BUF_SIZE_B: usize = 22 * 1000;
+fn main() {
+    // It is necessary to call this function once. Otherwise some patches to the runtime
+    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
+    esp_idf_svc::sys::link_patches();
 
-#[entry]
-fn main() -> ! {
-    #[allow(unused)]
-    let peripherals = esp_hal::init(esp_hal::Config::default());
-    let delay = Delay::new();
+    // Bind the log crate to the ESP Logging facilities
+    esp_idf_svc::log::EspLogger::initialize_default();
 
-    esp_println::logger::init_logger_from_env();
-    let mut usb_serial = UsbSerialJtag::new(peripherals.USB_DEVICE);
-    let mut input_buf: [u8; INPUT_BUF_SIZE_B] = [0; INPUT_BUF_SIZE_B];
+    log::info!("Hello, world!");
+
+    let mut buffer = String::new();
+    let stdin = std::io::stdin();
+    let mut handle = stdin.lock();
 
     loop {
-        delay.delay(500.millis());
-        let read = usb_serial.read(&mut input_buf).expect("read error!");
-        defmt::println!("Read {} bytes", read);
+        match handle.read_line(&mut buffer) {
+            Ok(_) => log::info!("{}", buffer),
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::WouldBlock
+                | std::io::ErrorKind::TimedOut
+                | std::io::ErrorKind::Interrupted => {
+                    //log::info!("Error: {e}\r\n");
+                    unsafe { vTaskDelay(10) };
+                    continue;
+                }
+                _ => {
+                    log::info!("Error: {e}\r\n");
+                    continue;
+                }
+            },
+        }
     }
 }
