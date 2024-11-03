@@ -1,0 +1,10 @@
+[package]
+name = "aoc-common"
+version = "0.1.0"
+authors = ["Oliver Hofkens <oli.hofkens@gmail.com>"]
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+embedded-io = "0.6.1"
+heapless = "0.8.0"
