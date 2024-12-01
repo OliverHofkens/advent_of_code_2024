@@ -37,6 +37,10 @@ impl<const N: usize> LineReader<N> {
                         return Ok(true);
                     }
 
+                    if byte == b'\x04' {
+                        return Ok(false);
+                    }
+
                     // Skip carriage return
                     if byte == b'\r' {
                         continue;

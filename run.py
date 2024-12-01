@@ -5,11 +5,9 @@ Automatically connects to the serial port and manages IO.
 """
 import json
 import os
-import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from subprocess import PIPE, Popen, check_output, run
-from time import sleep
+from subprocess import check_output, run
 
 import serial
 
@@ -65,6 +63,7 @@ def find_serial_port() -> str:
 
 def flash(artifact_dir: Path, pkg_name: str, serial_port: str):
     firmware_path = artifact_dir / pkg_name
+    print("Flashing", firmware_path)
     run(["espflash", "flash", "--port", serial_port, str(firmware_path)], check=True)
 
 
@@ -84,6 +83,7 @@ def monitor(serial_port: str, input_file: Path):
 
         print("Sending input")
         ser.write(input.encode())
+        ser.write(bytes.fromhex("04"))  # End of Transmission
         ser.flush()
 
         read_and_print_available(ser)
