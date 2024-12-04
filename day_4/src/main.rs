@@ -175,5 +175,26 @@ fn star_count_xmas(buf: &BufView, at_idx: usize) -> usize {
 // Part 2
 /// Given the x coordinate of an 'A', count the amounts of "MAS" centered there.
 fn star_count_x_mas(buf: &BufView, at_idx: usize) -> usize {
-    0
+    let top_line = buf.iter().nth(2).unwrap();
+    let bot_line = buf.iter().nth(4).unwrap();
+
+    if top_line.is_none() || bot_line.is_none() {
+        return 0;
+    }
+
+    let top_txt = top_line.as_ref().unwrap();
+    let bot_txt = bot_line.as_ref().unwrap();
+
+    let c1 = top_txt.get(at_idx - 1).unwrap_or(&b'.');
+    let c2 = top_txt.get(at_idx + 1).unwrap_or(&b'.');
+    let c3 = bot_txt.get(at_idx - 1).unwrap_or(&b'.');
+    let c4 = bot_txt.get(at_idx + 1).unwrap_or(&b'.');
+
+    match (c1, c2, c3, c4) {
+        (b'M', b'M', b'S', b'S') => 1,
+        (b'M', b'S', b'M', b'S') => 1,
+        (b'S', b'M', b'S', b'M') => 1,
+        (b'S', b'S', b'M', b'M') => 1,
+        _ => 0,
+    }
 }
