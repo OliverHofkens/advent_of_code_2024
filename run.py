@@ -70,7 +70,7 @@ def flash(artifact_dir: Path, pkg_name: str, serial_port: str):
 def read_and_print_available(ser: serial.Serial):
     while True:
         out = ser.readline()
-        print(out.decode())
+        print(out.decode(), end="")
         if not out.endswith(b"\n"):
             break
 
