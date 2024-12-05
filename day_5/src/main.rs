@@ -25,7 +25,8 @@ fn main() -> ! {
     // PageNr => Pages that need to come AFTER it.
     let mut rules: RuleSet = FnvIndexMap::new();
 
-    let mut sum: usize = 0;
+    let mut ok_sum: usize = 0;
+    let mut reordered_sum: usize = 0;
 
     while !eof {
         delay.delay(1.millis());
@@ -50,11 +51,18 @@ fn main() -> ! {
                         }
                     }
                 } else {
-                    let update: Update = line
+                    let mut update: Update = line
                         .split(',')
                         .map(|s| u8::from_str_radix(s, 10).unwrap())
                         .collect();
-                    sum += check_update(&update, &rules) as usize;
+
+                    match unsorted_at(&update, &rules) {
+                        None => ok_sum += update_val(&update),
+                        Some(page) => {
+                            reorder_update(&mut update, &rules, page);
+                            reordered_sum += update_val(&update);
+                        }
+                    }
                 }
             }
             Ok(false) => eof = true,
@@ -62,7 +70,8 @@ fn main() -> ! {
         }
     }
 
-    println!("Sum: {}", sum);
+    println!("Part 1: {}", ok_sum);
+    println!("Part 2: {}", reordered_sum);
 
     println!("<EOT>");
     loop {
@@ -70,9 +79,8 @@ fn main() -> ! {
     }
 }
 
-/// Parses `update` and returns the middle page if it's correctly sorted
-/// according to `rules`.
-fn check_update(update: &Update, rules: &RuleSet) -> u8 {
+/// Returns the page which is not sorted correctly, or None if everything is sorted correctly.
+fn unsorted_at(update: &Update, rules: &RuleSet) -> Option<u8> {
     let mut seen: FnvIndexSet<u8, 64> = FnvIndexSet::new();
 
     for page in update {
@@ -82,12 +90,40 @@ fn check_update(update: &Update, rules: &RuleSet) -> u8 {
         };
 
         if !is_ok {
-            return 0;
+            return Some(*page);
         }
 
         seen.insert(*page).unwrap();
     }
 
+    return None;
+}
+
+fn update_val(update: &Update) -> usize {
     let middle_idx = update.len() / 2;
-    update[middle_idx]
+    update[middle_idx] as usize
+}
+
+fn reorder_update(update: &mut Update, rules: &RuleSet, mut wrong_page: u8) {
+    loop {
+        let before = rules.get(&wrong_page).unwrap();
+        let wrong_idx = update.iter().position(|p| *p == wrong_page).unwrap();
+
+        // Get earliest index to move before
+        let earliest = before
+            .iter()
+            .filter_map(|pg| update.iter().position(|p| p == pg))
+            .min()
+            .unwrap();
+
+        // Move the wrong page to before the earliest it should be.
+        update.remove(wrong_idx);
+        update.insert(earliest, wrong_page);
+
+        // Check again, if we good, we good
+        match unsorted_at(&update, &rules) {
+            Some(x) => wrong_page = x,
+            None => break,
+        };
+    }
 }
