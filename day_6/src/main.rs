@@ -9,6 +9,7 @@ use esp_println::println;
 use heapless::{FnvIndexSet, Vec};
 
 type Coord = (isize, isize);
+type Path = FnvIndexSet<Coord, 8192>;
 
 #[entry]
 fn main() -> ! {
@@ -23,6 +24,7 @@ fn main() -> ! {
     let mut read_pos: Coord = (0, 0);
     let mut guard_pos: Coord = (0, 0);
     let mut guard_dir: Dir = Dir::N;
+    let mut path: Path = FnvIndexSet::new();
 
     while !eof {
         delay.delay(1.millis());
@@ -56,8 +58,11 @@ fn main() -> ! {
         read_pos.1 += 1;
     }
 
-    let p1 = simulate(&map, &mut guard_pos, guard_dir);
-    println!("Part 1: {p1}");
+    let _ = simulate(&map, &guard_pos, &guard_dir, true, &mut path);
+    println!("Part 1: {}", path.len());
+
+    let p2 = find_looping_blockades(&mut map, &path, &guard_pos, &guard_dir);
+    println!("Part 2: {p2}");
 
     println!("<EOT>");
     loop {
@@ -65,7 +70,7 @@ fn main() -> ! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 enum Dir {
     N,
     E,
@@ -114,14 +119,32 @@ impl Map {
     fn size(&self) -> (isize, isize) {
         (self.0[0].len() as isize, self.0.len() as isize)
     }
+
+    fn toggle(&mut self, pos: &Coord) {
+        let x = pos.0 as usize;
+        let y = pos.1 as usize;
+        self.0[y][x] = !self.0[y][x];
+    }
 }
 
-fn simulate(map: &Map, guard_pos: &mut Coord, mut guard_dir: Dir) -> usize {
-    let mut seen: FnvIndexSet<Coord, 16384> = FnvIndexSet::new();
+fn simulate<const N: usize>(
+    map: &Map,
+    start_pos: &Coord,
+    start_dir: &Dir,
+    do_trace: bool,
+    tracepath: &mut FnvIndexSet<Coord, N>,
+) -> bool {
+    let mut guard_pos = start_pos.clone();
+    let mut guard_dir = start_dir.clone();
+    let mut path: FnvIndexSet<(isize, isize, u8), 256> = FnvIndexSet::new();
     let map_size = map.size();
+    let mut is_loop = false;
 
     loop {
-        seen.insert(*guard_pos).unwrap();
+        if do_trace {
+            tracepath.insert(guard_pos).unwrap();
+        }
+
         let (dx, dy) = match guard_dir {
             Dir::N => (0, -1),
             Dir::E => (1, 0),
@@ -142,13 +165,39 @@ fn simulate(map: &Map, guard_pos: &mut Coord, mut guard_dir: Dir) -> usize {
 
         let next_pos: Coord = (guard_pos.0 + dx, guard_pos.1 + dy);
         if map.is_obstacle(&next_pos) {
+            let is_new = path
+                .insert((guard_pos.0, guard_pos.1, guard_dir.to_u8()))
+                .unwrap();
+            if !is_new {
+                is_loop = true;
+                break;
+            }
             guard_dir = guard_dir.rotate();
-            println!(
-                "Guard blocked at {:?}, turned to {:?}",
-                guard_pos, guard_dir
-            );
         }
     }
 
-    seen.len()
+    is_loop
+}
+
+fn find_looping_blockades(
+    map: &mut Map,
+    orig_path: &Path,
+    start_pos: &Coord,
+    start_dir: &Dir,
+) -> usize {
+    let blockade_options = orig_path.iter().filter(|c| *c != start_pos);
+    let mut hits: usize = 0;
+
+    let mut empty_tracepath: FnvIndexSet<Coord, 2> = FnvIndexSet::new();
+
+    for pos in blockade_options {
+        map.toggle(pos);
+        let is_loop = simulate(&map, start_pos, start_dir, false, &mut empty_tracepath);
+        if is_loop {
+            hits += 1;
+        }
+        map.toggle(pos);
+    }
+
+    hits
 }
