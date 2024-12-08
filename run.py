@@ -82,7 +82,11 @@ def monitor(serial_port: str, input_file: Path):
         read_and_print_available(ser)
 
         print("Sending input")
-        ser.write(input.encode())
+        for line in input.splitlines():
+            ser.write(line.encode() + b"\n")
+            if ser.in_waiting:
+                print(ser.readline().decode(), end="")
+
         ser.write(bytes.fromhex("04"))  # End of Transmission
         ser.flush()
 
