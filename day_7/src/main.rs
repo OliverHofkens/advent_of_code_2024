@@ -1,7 +1,7 @@
 #![deny(clippy::mem_forget)] // core::mem::forget is dangerous on ESP32
 #![no_std]
 #![no_main]
-use aoc_common::io;
+use aoc_common::{io, num};
 use esp_backtrace as _;
 use esp_hal::usb_serial_jtag::UsbSerialJtag;
 use esp_hal::{delay::Delay, prelude::*};
@@ -62,8 +62,6 @@ fn is_solvable(test_val: u64, acc: u64, terms: &[u64]) -> bool {
     let rest = &terms[1..];
     let leaf = rest.is_empty();
 
-    println!("[{}] = {} ? {}", test_val, acc, next);
-
     match acc.checked_add(next) {
         Some(x) if leaf && x == test_val => return true,
         Some(new_acc) if !leaf && new_acc <= test_val && is_solvable(test_val, new_acc, &rest) => {
@@ -73,6 +71,14 @@ fn is_solvable(test_val: u64, acc: u64, terms: &[u64]) -> bool {
     }
 
     match acc.checked_mul(next) {
+        Some(x) if leaf && x == test_val => return true,
+        Some(new_acc) if !leaf && new_acc <= test_val && is_solvable(test_val, new_acc, &rest) => {
+            return true
+        }
+        _ => (),
+    }
+
+    match num::concat(acc, next) {
         Some(x) if leaf && x == test_val => true,
         Some(new_acc) if !leaf && new_acc <= test_val => is_solvable(test_val, new_acc, &rest),
         _ => false,
