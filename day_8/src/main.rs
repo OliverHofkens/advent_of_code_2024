@@ -2,7 +2,7 @@
 #![no_std]
 #![no_main]
 use aoc_common::{io, iter};
-use core::cmp::{max, min};
+use core::cmp::max;
 use esp_backtrace as _;
 use esp_hal::usb_serial_jtag::UsbSerialJtag;
 use esp_hal::{delay::Delay, prelude::*};
@@ -59,6 +59,10 @@ fn main() -> ! {
     }
 
     println!("Unique Antinodes: {:?}", count_antinodes(&map, &size));
+    println!(
+        "Unique Harmonics: {:?}",
+        count_antinodes_with_harmonics(&map, &size)
+    );
 
     println!("<EOT>");
     loop {
@@ -71,14 +75,32 @@ fn count_antinodes(map: &Map, size: &Coord) -> usize {
 
     for (_freq, pts) in map.iter() {
         for (pt1, pt2) in iter::PairIterator::new(pts) {
-            let (x1, y1) = project(pt1, pt2);
-            if (0..size.0).contains(&x1) && (0..size.1).contains(&y1) {
-                antis.insert((x1, y1)).unwrap();
+            for (start, through) in [(pt1, pt2), (pt2, pt1)] {
+                let (x, y) = project(start, through);
+                if (0..size.0).contains(&x) && (0..size.1).contains(&y) {
+                    antis.insert((x, y)).unwrap();
+                }
             }
+        }
+    }
 
-            let (x2, y2) = project(pt2, pt1);
-            if (0..size.0).contains(&x2) && (0..size.1).contains(&y2) {
-                antis.insert((x2, y2)).unwrap();
+    antis.len()
+}
+
+fn count_antinodes_with_harmonics(map: &Map, size: &Coord) -> usize {
+    let mut antis: FnvIndexSet<Coord, 2048> = FnvIndexSet::new();
+
+    for (_freq, pts) in map.iter() {
+        for (pt1, pt2) in iter::PairIterator::new(pts) {
+            for (start, through) in [(pt1, pt2), (pt2, pt1)] {
+                let mut proj_pt = *start;
+                let mut through_pt = *through;
+                while (0..size.0).contains(&proj_pt.0) && (0..size.1).contains(&proj_pt.1) {
+                    antis.insert(proj_pt).unwrap();
+                    let next_proj = through_pt;
+                    through_pt = project(&proj_pt, &through_pt);
+                    proj_pt = next_proj;
+                }
             }
         }
     }
