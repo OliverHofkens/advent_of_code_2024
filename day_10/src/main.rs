@@ -43,19 +43,23 @@ fn main() -> ! {
     }
 
     let mut size = (map[0].len() as isize, map.len() as isize);
-    let mut sum: usize = 0;
+
+    let mut p1: usize = 0;
+    let mut p2: usize = 0;
 
     // Find all zeroes and start walking:
     for (y, row) in map.iter().enumerate() {
         for (x, height) in row.iter().enumerate() {
             if *height == 0 {
                 let mut path = Path::new();
-                sum += walk(&map, &(x as isize, y as isize), &size, &mut path);
+                p1 += walk(&map, &(x as isize, y as isize), &size, &mut path);
+                p2 += rating(&map, &(x as isize, y as isize), &size);
             }
         }
     }
 
-    println!("Sum: {}", sum);
+    println!("Part 1: {}", p1);
+    println!("Part 2: {}", p2);
 
     println!("<EOT>");
     loop {
@@ -79,6 +83,28 @@ fn walk(map: &Map, pos: &Coord, size: &Coord, seen: &mut Path) -> usize {
             (nx, ny) if (0..size.0).contains(&nx) && (0..size.1).contains(&ny) => {
                 if map[ny as usize][nx as usize] == height + 1 && !seen.contains(&(nx, ny)) {
                     sum += walk(&map, &(nx, ny), size, seen);
+                }
+            }
+            _ => continue,
+        }
+    }
+    sum
+}
+
+fn rating(map: &Map, pos: &Coord, size: &Coord) -> usize {
+    let height = map[pos.1 as usize][pos.0 as usize];
+
+    if height == 9 {
+        return 1;
+    }
+
+    let mut sum = 0;
+
+    for (dx, dy) in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
+        match (pos.0 + dx, pos.1 + dy) {
+            (nx, ny) if (0..size.0).contains(&nx) && (0..size.1).contains(&ny) => {
+                if map[ny as usize][nx as usize] == height + 1 {
+                    sum += rating(&map, &(nx, ny), size);
                 }
             }
             _ => continue,
