@@ -8,7 +8,7 @@ use esp_hal::{delay::Delay, prelude::*};
 use esp_println::{print, println};
 use heapless::Deque;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Block {
     id: i16,
     size: u8,
@@ -28,8 +28,6 @@ fn main() -> ! {
     let mut disk: Disk = Disk::new();
 
     loop {
-        // delay.delay(1.millis());
-
         match usb_serial.read(&mut byte_buf) {
             Ok(0) => break,
             Ok(_) => {
@@ -53,7 +51,12 @@ fn main() -> ! {
         }
     }
 
-    let checksum = compact(&mut disk);
+    // Part 1:
+    // let checksum = compact(&mut disk);
+    // println!("Checksum: {}", checksum);
+
+    // Part 2:
+    let checksum = defrag(&mut disk);
     println!("Checksum: {}", checksum);
 
     println!("<EOT>");
@@ -104,4 +107,69 @@ fn compact(disk: &mut Disk) -> u64 {
     }
     print!("\n");
     sum
+}
+
+fn defrag(disk: &mut Disk) -> u64 {
+    let mut sum: u64 = 0;
+    let mut idx: usize = 0;
+
+    while let Some(mut blk) = disk.pop_front() {
+        if blk.id >= 0 {
+            // File, so checksum
+            for pos in idx..idx + blk.size as usize {
+                sum += pos as u64 * blk.id as u64;
+            }
+            idx += blk.size as usize;
+        } else {
+            // Free space, so fill up from back, with last file that fits.
+            let mut new_front: Option<Block> = None;
+
+            match disk
+                .iter_mut()
+                .rev()
+                .find(|b| b.id >= 0 && b.size > 0 && b.size <= blk.size)
+            {
+                Some(file) => {
+                    blk.size -= file.size;
+                    new_front = Some(file.clone());
+                    // Turn the file into free space
+                    file.id = -1;
+                }
+                None => {
+                    // No file fits, so skip indexes for calculation
+                    idx += blk.size as usize;
+                    continue;
+                }
+            }
+
+            // If we have free space remaining, re-add it:
+            if blk.size > 0 {
+                disk.push_front(blk);
+            }
+
+            if let Some(file) = new_front {
+                disk.push_front(file).unwrap();
+            }
+        }
+        // dump_disk(&disk);
+    }
+    sum
+}
+
+fn dump_disk(disk: &Disk) {
+    for blk in disk.iter() {
+        match blk.id {
+            x if x < 0 => {
+                for _ in 0..blk.size {
+                    print!(".");
+                }
+            }
+            x => {
+                for _ in 0..blk.size {
+                    print!("{x}");
+                }
+            }
+        }
+    }
+    print!("\n")
 }
