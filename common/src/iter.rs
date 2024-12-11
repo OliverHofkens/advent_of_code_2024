@@ -34,11 +34,12 @@ impl<'a, T> Iterator for PairIterator<'a, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use heapless::Vec;
 
     #[test]
     fn test_pair_iterator() {
         let items = [1, 2, 3];
-        let pairs: Vec<_, 4> = PairIterator::new(&items).collect();
+        let pairs: Vec<_, 3> = PairIterator::new(&items).collect();
         assert_eq!(&pairs[..], &[(&1, &2), (&1, &3), (&2, &3)]);
     }
 }

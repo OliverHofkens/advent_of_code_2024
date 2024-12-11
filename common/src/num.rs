@@ -1,5 +1,5 @@
 /// Returns the number of digits in a given number
-fn count_digits(mut n: u64) -> u32 {
+pub fn count_digits(mut n: u64) -> u32 {
     if n == 0 {
         return 1;
     }
@@ -12,7 +12,7 @@ fn count_digits(mut n: u64) -> u32 {
 }
 
 /// Computes 10^n
-fn pow10(n: u32) -> u64 {
+pub fn pow10(n: u32) -> u64 {
     let mut result = 1;
     let mut i = 0;
     while i < n {
@@ -28,6 +28,14 @@ pub fn concat(a: u64, b: u64) -> Option<u64> {
     let b_digits = count_digits(b);
     let base = a.checked_mul(pow10(b_digits))?;
     base.checked_add(b)
+}
+
+/// Splits a number in 2 at index 'at'.
+pub fn split(num: u64, at: u32) -> (u64, u64) {
+    let factor = pow10(at);
+    let first_part = num / factor;
+    let last_part = num - first_part * factor;
+    (first_part, last_part)
 }
 
 #[cfg(test)]
@@ -48,5 +56,11 @@ mod tests {
         assert_eq!(concat(1, 2), Some(12));
         assert_eq!(concat(0, 123), Some(123));
         assert_eq!(concat(123, 0), Some(1230));
+    }
+
+    #[test]
+    fn test_split() {
+        assert_eq!(split(123456, 3), (123, 456));
+        assert_eq!(split(4444, 2), (44, 44));
     }
 }
