@@ -8,7 +8,7 @@ use esp_hal::{delay::Delay, prelude::*};
 use esp_println::println;
 use heapless::FnvIndexMap;
 
-type Cache = FnvIndexMap<(u64, u8), u32, 8192>;
+type Cache = FnvIndexMap<(u64, u8), u64, 8192>;
 
 #[entry]
 fn main() -> ! {
@@ -32,8 +32,8 @@ fn main() -> ! {
                 let count = line
                     .split(' ')
                     .map(|s| u64::from_str_radix(s, 10).unwrap())
-                    .fold(0u32, |acc, num| {
-                        acc.checked_add(simulate_blinks(num, 42, &mut cache))
+                    .fold(0u64, |acc, num| {
+                        acc.checked_add(simulate_blinks(num, 25, &mut cache))
                             .unwrap()
                     });
 
@@ -50,7 +50,7 @@ fn main() -> ! {
     }
 }
 
-fn simulate_blinks(stone: u64, blinks: u8, cache: &mut Cache) -> u32 {
+fn simulate_blinks(stone: u64, blinks: u8, cache: &mut Cache) -> u64 {
     if blinks == 0 {
         return 1;
     }
