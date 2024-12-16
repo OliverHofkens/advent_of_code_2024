@@ -60,26 +60,35 @@ fn main() -> ! {
     // println!("Safety: {safety}");
 
     // Part 2
+    // The more uniform (noisy) the distribution, the higher the safety score.
+    // So only print the image if it's a lower score than we've seen so far.
+    let mut lowest_seen: u64 = u64::MAX;
     let mut pic = [[' '; WIDTH as usize]; HEIGHT as usize];
-    for i in 0..1000 {
+    for i in 0..10_000 {
+        println!("Iter {i}");
         step(&mut bots, WIDTH, HEIGHT);
 
-        pic = [[' '; WIDTH as usize]; HEIGHT as usize];
+        let safety = safety_factor(&bots, WIDTH, HEIGHT);
 
-        for bot in &bots {
-            pic[bot.y as usize][bot.x as usize] = '█'
-        }
+        if safety < lowest_seen {
+            lowest_seen = safety;
+            pic = [[' '; WIDTH as usize]; HEIGHT as usize];
 
-        println!("{i} SEC");
-        for line in pic {
-            for c in line {
-                print!("{c}");
+            for bot in &bots {
+                pic[bot.y as usize][bot.x as usize] = '█'
             }
-            print!("\n");
-        }
-        println!("---");
 
-        delay.delay(100.millis());
+            println!("{i} SEC");
+            for line in pic {
+                for c in line {
+                    print!("{c}");
+                }
+                print!("\n");
+            }
+            println!("---");
+
+            delay.delay(1.millis());
+        }
     }
 
     println!("<EOT>");
@@ -124,10 +133,10 @@ fn safety_factor(bots: &Bots, width: i16, height: i16) -> u64 {
     let q1y = height / 2;
     let q2y = (height + 1) / 2;
 
-    println!("Q1 [0 -> {q1x}, 0 -> {q1y}]");
-    println!("Q2 [{q2x} -> ., 0 -> {q1y}]");
-    println!("Q3 [0 -> {q1x}, {q2y} -> .]");
-    println!("Q4 [{q2x} -> ., {q2y} -> .]");
+    // println!("Q1 [0 -> {q1x}, 0 -> {q1y}]");
+    // println!("Q2 [{q2x} -> ., 0 -> {q1y}]");
+    // println!("Q3 [0 -> {q1x}, {q2y} -> .]");
+    // println!("Q4 [{q2x} -> ., {q2y} -> .]");
 
     for bot in bots {
         if bot.x < q1x && bot.y < q1y {
@@ -141,7 +150,7 @@ fn safety_factor(bots: &Bots, width: i16, height: i16) -> u64 {
         }
     }
 
-    println!("Quads: {:?}", quad_counts);
+    // println!("Quads: {:?}", quad_counts);
 
     quad_counts.iter().product()
 }
