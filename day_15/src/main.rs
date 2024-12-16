@@ -5,11 +5,13 @@ use aoc_common::io;
 use esp_backtrace as _;
 use esp_hal::usb_serial_jtag::UsbSerialJtag;
 use esp_hal::{delay::Delay, prelude::*};
-use esp_println::println;
+use esp_println::{print, println};
 use heapless::Vec;
 
-type Map = Vec<Vec<u8, 50>, 50>;
+type Map = Vec<Vec<u8, 100>, 50>;
 type Coord = (i8, i8);
+
+const WIDE_MODE: bool = true;
 
 #[entry]
 fn main() -> ! {
@@ -37,11 +39,26 @@ fn main() -> ! {
                         reading_map = false;
                         pos = find_bot(&map);
                     } else {
-                        map.push(Vec::from_slice(line).unwrap()).unwrap();
+                        if WIDE_MODE {
+                            let mut row = Vec::new();
+                            for c in line {
+                                match c {
+                                    b'#' => row.extend_from_slice(b"##").unwrap(),
+                                    b'O' => row.extend_from_slice(b"[]").unwrap(),
+                                    b'.' => row.extend_from_slice(b"..").unwrap(),
+                                    b'@' => row.extend_from_slice(b"@.").unwrap(),
+                                    x => row.push(*x).unwrap(),
+                                };
+                            }
+                            map.push(row).unwrap();
+                        } else {
+                            map.push(Vec::from_slice(line).unwrap()).unwrap();
+                        }
                     }
                 } else {
                     for dir in line {
-                        if let Some(new_pos) = do_move(&mut map, &pos, b'@', *dir) {
+                        if let Some(new_pos) = maybe_move(&mut map, &pos, b'@', *dir) {
+                            // dump_map(&map);
                             pos = new_pos;
                         }
                     }
@@ -70,7 +87,16 @@ fn find_bot(map: &Map) -> Coord {
     (0, 0)
 }
 
-fn do_move(map: &mut Map, pos: &Coord, marker: u8, dir: u8) -> Option<Coord> {
+fn dump_map(map: &Map) {
+    for row in map {
+        for c in row {
+            print!("{}", *c as char);
+        }
+        print!("\n")
+    }
+}
+
+fn maybe_move(map: &mut Map, pos: &Coord, marker: u8, dir: u8) -> Option<Coord> {
     let (dx, dy) = match dir {
         b'^' => (0, -1),
         b'>' => (1, 0),
@@ -79,40 +105,63 @@ fn do_move(map: &mut Map, pos: &Coord, marker: u8, dir: u8) -> Option<Coord> {
         _ => unreachable!(),
     };
 
+    if can_move(map, pos, marker, dx, dy) {
+        Some(do_move(map, pos, marker, dx, dy, false))
+    } else {
+        None
+    }
+}
+
+fn can_move(map: &Map, pos: &Coord, marker: u8, dx: i8, dy: i8) -> bool {
     let nx = pos.0 + dx;
     let ny = pos.1 + dy;
 
     let target = map[ny as usize][nx as usize];
 
     match target {
-        b'#' => None,
-        b'.' => {
-            // println!(
-            //     "Moving {} from {:?} to ({}, {})",
-            //     marker as char, pos, nx, ny
-            // );
-            map[ny as usize][nx as usize] = marker;
-            map[pos.1 as usize][pos.0 as usize] = b'.';
-            Some((nx, ny))
+        b'#' => false,
+        b'.' => true,
+        b'O' => can_move(map, &(nx, ny), marker, dx, dy),
+        b'[' | b']' if dy == 0 => can_move(map, &(nx, ny), marker, dx, dy),
+        b'[' => {
+            can_move(map, &(nx, ny), b'[', dx, dy) && can_move(map, &(nx + 1, ny), b']', dx, dy)
         }
-        b'O' => {
-            // Try to move the box, and only move if the box moved.
-            match do_move(map, &(nx, ny), b'O', dir) {
-                Some(_) => {
-                    // println!(
-                    //     "Moving {} from {:?} to ({}, {})",
-                    //     marker as char, pos, nx, ny
-                    // );
-                    // Box moved, so we move:
-                    map[ny as usize][nx as usize] = marker;
-                    map[pos.1 as usize][pos.0 as usize] = b'.';
-                    Some((nx, ny))
-                }
-                None => None,
-            }
+        b']' => {
+            can_move(map, &(nx - 1, ny), b'[', dx, dy) && can_move(map, &(nx, ny), b']', dx, dy)
         }
-        x => unreachable!(),
+        _ => unreachable!(),
     }
+}
+
+fn do_move(map: &mut Map, pos: &Coord, marker: u8, dx: i8, dy: i8, is_child: bool) -> Coord {
+    let nx = pos.0 + dx;
+    let ny = pos.1 + dy;
+
+    // println!(
+    //     "Moving {} from {:?} to ({}, {})",
+    //     marker as char, pos, nx, ny
+    // );
+
+    let target = map[ny as usize][nx as usize];
+
+    // Move target first:
+    if target == b'O' || target == b'[' || target == b']' {
+        do_move(map, &(nx, ny), target, dx, dy, false);
+    }
+
+    // Move wide boxes together when moving up or down
+    if !is_child && dy != 0 {
+        if marker == b'[' {
+            do_move(map, &(pos.0 + 1, pos.1), b']', dx, dy, true);
+        } else if marker == b']' {
+            do_move(map, &(pos.0 - 1, pos.1), b'[', dx, dy, true);
+        }
+    }
+
+    // Move ourself
+    map[ny as usize][nx as usize] = marker;
+    map[pos.1 as usize][pos.0 as usize] = b'.';
+    (nx, ny)
 }
 
 fn gps_sum(map: &Map) -> u64 {
@@ -121,7 +170,13 @@ fn gps_sum(map: &Map) -> u64 {
         sum += row
             .iter()
             .enumerate()
-            .filter_map(|(x, c)| if *c == b'O' { Some(x) } else { None })
+            .filter_map(|(x, c)| {
+                if *c == b'O' || *c == b'[' {
+                    Some(x)
+                } else {
+                    None
+                }
+            })
             .map(|x| 100 * y + x)
             .sum::<usize>() as u64;
     }

@@ -8,6 +8,7 @@ import os
 from argparse import ArgumentParser
 from pathlib import Path
 from subprocess import check_output, run
+from time import sleep
 
 import serial
 
@@ -84,8 +85,12 @@ def monitor(serial_port: str, input_file: Path):
         print("Sending input")
         for line in input.splitlines():
             ser.write(line.encode() + b"\n")
-            if ser.in_waiting:
+
+            # Give the device some time to process/panic/log before pushing more into the buffer
+            sleep(0.001)
+            while ser.in_waiting:
                 print(ser.readline().decode(), end="")
+                sleep(0.001)
 
         ser.write(bytes.fromhex("04"))  # End of Transmission
         ser.flush()
