@@ -1,11 +1,13 @@
 use heapless::binary_heap::{BinaryHeap, Min};
-use heapless::Vec;
+use heapless::{FnvIndexSet, Vec};
 use std::env;
 use std::fs;
 
 const MAP_SIZE: usize = 141;
 type Map = Vec<Vec<char, MAP_SIZE>, MAP_SIZE>;
 type Coord = (i16, i16);
+type Distances = [[[u64; 4]; MAP_SIZE]; MAP_SIZE];
+type PosSet = FnvIndexSet<Coord, 1024>;
 
 fn main() {
     let inp = get_input_contents();
@@ -19,8 +21,9 @@ fn main() {
     let start = find_on_map(&map, 'S').unwrap();
     let end = find_on_map(&map, 'E').unwrap();
 
-    let cost = dijkstra(&map, start, end);
+    let (cost, optimal_tiles) = dijkstra(&map, start, end);
     println!("Cost: {cost}");
+    println!("Optimal tiles: {optimal_tiles}");
 }
 
 fn get_input_contents() -> String {
@@ -94,10 +97,12 @@ impl Dir {
     }
 }
 
-fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
+fn dijkstra(map: &Map, start: Coord, end: Coord) -> (u64, u64) {
     let mut q: BinaryHeap<Node, Min, 512> = BinaryHeap::new();
     let mut processed = [[[false; 4]; MAP_SIZE]; MAP_SIZE];
-    let mut distance = [[[u64::MAX; 4]; MAP_SIZE]; MAP_SIZE];
+    let mut distance: Distances = [[[u64::MAX; 4]; MAP_SIZE]; MAP_SIZE];
+    let mut min_cost = u64::MAX;
+    let mut final_dir: Dir = Dir::E;
 
     distance[start.1 as usize][start.0 as usize][Dir::E.idx()] = 0;
     q.push(Node {
@@ -108,7 +113,17 @@ fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
     .unwrap();
 
     while let Some(node) = q.pop() {
-        println!("{:?}", node);
+        // If we reached the end, update the min cost so we don't have to spend time on longer
+        // paths anymore.
+        if node.cost > min_cost {
+            continue;
+        }
+        if node.pos == end {
+            min_cost = node.cost;
+            final_dir = node.dir;
+            continue;
+        }
+
         if processed[node.pos.1 as usize][node.pos.0 as usize][node.dir.idx()] {
             continue;
         }
@@ -129,19 +144,43 @@ fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
 
             let new_cost = node.cost + 1 + (1000 * node.dir.diff(&dir));
 
-            if new_cost < distance[ny as usize][nx as usize][dir.idx()] {
+            if new_cost <= distance[ny as usize][nx as usize][dir.idx()] {
                 distance[ny as usize][nx as usize][dir.idx()] = new_cost;
+
                 let new_node = Node {
                     pos: (nx, ny),
                     dir,
                     cost: new_cost,
                 };
-                println!("Push {:?}", new_node);
                 q.push(new_node).unwrap();
             }
         }
     }
 
-    let end_costs = distance[end.1 as usize][end.0 as usize];
-    *end_costs.iter().min().unwrap()
+    // Part 2
+    let mut paths: PosSet = FnvIndexSet::new();
+    let final_node = Node {
+        pos: end,
+        dir: final_dir,
+        cost: min_cost,
+    }
+
+    walk_paths(final_node, &distance, &mut paths);
+
+    (min_cost, paths.len() as u64)
+}
+
+fn walk_paths(node: &Node, distances: &Distances, seen: PosSet) {
+    seen.insert(&pos).unwrap();
+
+    let min_dist = u64::MAX;
+
+    // Find neighbors
+    for dir in [Dir::N, Dir::E, Dir::S, Dir::W] {
+        let (dx, dy) = dir.dxdy();
+        let nx = node.pos.0 + dx;
+        let ny = node.pos.1 + dy;
+
+        let dist = distances[ny as usize][nx as usize].iter().min();
+    }
 }
