@@ -58,10 +58,22 @@ fn main() -> ! {
     vm.run_program(&program);
 
     print!("Part 1: ");
-    for o in vm.out {
+    for o in &vm.out {
         print!("{o},");
     }
     print!("\n");
+
+    println!("Part 2:");
+
+    // Observation 1: The amount of digits in our output depends on the size of A.
+    // A divides by 8 each loop, so to get x digits we need at least 8^x as input.
+    // Observation 2: The output behaves like an octal number. The first digit changes every loop, the second
+    // digit changes every 8 loops, the third digit every 64 loops, etc.
+    let mut digit_idx = program.len() as u32 - 1;
+    let mut bases = [0u64; 16];
+
+    let res = reverse_engineer(&program, &mut bases, digit_idx).unwrap();
+    println!("Res: {res}");
 
     println!("<EOT>");
     loop {
@@ -69,12 +81,44 @@ fn main() -> ! {
     }
 }
 
+fn reverse_engineer(program: &Program, bases: &mut [u64; 16], digit_idx: u32) -> Option<u64> {
+    for digit in 0..8 {
+        let mut a = 0;
+        bases[digit_idx as usize] = digit;
+        for (pow, base) in bases.iter().enumerate() {
+            a += base * 8u64.pow(pow as u32);
+        }
+
+        let mut vm = VM::new(a, 0, 0);
+        vm.run_program(&program);
+
+        // println!("A {a}: {:?}", &vm.out);
+        if &vm.out == program {
+            return Some(a);
+        }
+
+        if vm.out.len() >= digit_idx as usize
+            && vm.out[digit_idx as usize] == program[digit_idx as usize]
+        {
+            // Found a digit! Check if we can make it from here by checking earlier digits
+            // recursively:
+            println!("Locked in digit {}", digit_idx);
+            println!("A = {a} = {:?}", &vm.out);
+
+            if let Some(a) = reverse_engineer(program, bases, digit_idx - 1) {
+                return Some(a);
+            }
+        }
+    }
+    None
+}
+
 struct VM {
     instr_ptr: u8,
     reg_a: u64,
     reg_b: u64,
     reg_c: u64,
-    out: Vec<u64, 64>,
+    out: Program,
 }
 
 impl VM {
@@ -156,7 +200,7 @@ impl VM {
 
     fn out(&mut self, operand: u8) {
         let res = self.combo(operand) % 8;
-        self.out.push(res).unwrap();
+        self.out.push(res as u8).unwrap();
         self.instr_ptr += 2;
     }
 
