@@ -19,8 +19,9 @@ fn main() {
     let start = find_on_map(&map, 'S').unwrap();
     let end = find_on_map(&map, 'E').unwrap();
 
-    let cost = dijkstra(&map, start, end);
+    let (cost, tile_count) = dijkstra(&map, start, end);
     println!("Cost: {cost}");
+    println!("Tiles on shortest paths: {tile_count}");
 }
 
 fn get_input_contents() -> String {
@@ -45,7 +46,6 @@ struct Node {
     cost: u64,
 }
 
-// Implementation for BinaryHeap ordering
 impl Ord for Node {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.cost.cmp(&other.cost)
@@ -92,12 +92,39 @@ impl Dir {
             _ => 1,
         }
     }
+
+    fn from_idx(idx: usize) -> Self {
+        match idx {
+            0 => Dir::N,
+            1 => Dir::E,
+            2 => Dir::S,
+            3 => Dir::W,
+            _ => panic!("Invalid direction index"),
+        }
+    }
 }
 
-fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
+#[derive(Copy, Clone, Debug)]
+struct PrevNode {
+    pos: Coord,
+    dir: Dir,
+}
+
+// Define a default PrevNode for initialization
+impl Default for PrevNode {
+    fn default() -> Self {
+        Self {
+            pos: (0, 0),
+            dir: Dir::N,
+        }
+    }
+}
+
+fn dijkstra(map: &Map, start: Coord, end: Coord) -> (u64, usize) {
     let mut q: BinaryHeap<Node, Min, 512> = BinaryHeap::new();
     let mut processed = [[[false; 4]; MAP_SIZE]; MAP_SIZE];
     let mut distance = [[[u64::MAX; 4]; MAP_SIZE]; MAP_SIZE];
+    let mut prev = [[[[PrevNode::default(); 8]; 4]; MAP_SIZE]; MAP_SIZE];
 
     distance[start.1 as usize][start.0 as usize][Dir::E.idx()] = 0;
     q.push(Node {
@@ -107,14 +134,24 @@ fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
     })
     .unwrap();
 
+    let mut min_end_cost = u64::MAX;
+
     while let Some(node) = q.pop() {
-        println!("{:?}", node);
+        // Skip if we've found better paths
+        if node.cost > min_end_cost {
+            continue;
+        }
+
         if processed[node.pos.1 as usize][node.pos.0 as usize][node.dir.idx()] {
             continue;
         }
         processed[node.pos.1 as usize][node.pos.0 as usize][node.dir.idx()] = true;
 
-        // Find positions reachable from here
+        // Update min_end_cost if we've reached the end
+        if node.pos == end {
+            min_end_cost = min_end_cost.min(node.cost);
+        }
+
         for dir in [Dir::N, Dir::E, Dir::S, Dir::W] {
             let (dx, dy) = dir.dxdy();
             let nx = node.pos.0 + dx;
@@ -129,19 +166,69 @@ fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
 
             let new_cost = node.cost + 1 + (1000 * node.dir.diff(&dir));
 
-            if new_cost < distance[ny as usize][nx as usize][dir.idx()] {
-                distance[ny as usize][nx as usize][dir.idx()] = new_cost;
+            let curr_dist = &mut distance[ny as usize][nx as usize][dir.idx()];
+            if new_cost <= *curr_dist {
+                let prev_arr = &mut prev[ny as usize][nx as usize][dir.idx()];
+
+                if new_cost < *curr_dist {
+                    // Clear previous nodes if we found a better path
+                    *curr_dist = new_cost;
+                    prev_arr[0] = PrevNode {
+                        pos: node.pos,
+                        dir: node.dir,
+                    };
+                    for i in 1..prev_arr.len() {
+                        prev_arr[i] = PrevNode::default();
+                    }
+                } else {
+                    // Add to previous nodes if cost is equal
+                    if let Some(empty_slot) = prev_arr.iter_mut().find(|p| p.pos == (0, 0)) {
+                        *empty_slot = PrevNode {
+                            pos: node.pos,
+                            dir: node.dir,
+                        };
+                    }
+                }
+
                 let new_node = Node {
                     pos: (nx, ny),
                     dir,
                     cost: new_cost,
                 };
-                println!("Push {:?}", new_node);
                 q.push(new_node).unwrap();
             }
         }
     }
 
-    let end_costs = distance[end.1 as usize][end.0 as usize];
-    *end_costs.iter().min().unwrap()
+    // Count tiles that appear in any shortest path
+    let mut visited = [[false; MAP_SIZE]; MAP_SIZE];
+    for dir_idx in 0..4 {
+        if distance[end.1 as usize][end.0 as usize][dir_idx] == min_end_cost {
+            mark_path_tiles(&prev, end, Dir::from_idx(dir_idx), &mut visited);
+        }
+    }
+
+    let tile_count = visited
+        .iter()
+        .map(|row| row.iter().filter(|&&v| v).count())
+        .sum();
+
+    (min_end_cost, tile_count)
+}
+
+fn mark_path_tiles(
+    prev: &[[[[PrevNode; 8]; 4]; MAP_SIZE]; MAP_SIZE],
+    pos: Coord,
+    dir: Dir,
+    visited: &mut [[bool; MAP_SIZE]; MAP_SIZE],
+) {
+    visited[pos.1 as usize][pos.0 as usize] = true;
+
+    let prev_nodes = &prev[pos.1 as usize][pos.0 as usize][dir.idx()];
+    for prev_node in prev_nodes {
+        if prev_node.pos != (0, 0) {
+            // Check if this is a valid previous node
+            mark_path_tiles(prev, prev_node.pos, prev_node.dir, visited);
+        }
+    }
 }
