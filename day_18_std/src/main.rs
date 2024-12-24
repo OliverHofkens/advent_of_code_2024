@@ -11,21 +11,45 @@ type Coord = (i16, i16);
 fn main() {
     let inp = get_input_contents();
 
-    let mut map = [[true; MAP_SIZE]; MAP_SIZE];
+    let mut drops: Vec<Coord, 4096> = Vec::new();
 
-    for line in inp.lines().take(BLOCKS_TO_DROP) {
+    for line in inp.lines() {
         let (xstr, ystr) = line.split_once(',').unwrap();
-        map[usize::from_str_radix(ystr, 10).unwrap()][usize::from_str_radix(xstr, 10).unwrap()] =
-            false;
+        drops
+            .push((
+                i16::from_str_radix(xstr, 10).unwrap(),
+                i16::from_str_radix(ystr, 10).unwrap(),
+            ))
+            .unwrap();
     }
-
-    dump_map(&map);
 
     let start = (0, 0);
     let end = ((MAP_SIZE - 1) as i16, (MAP_SIZE - 1) as i16);
 
-    let cost = dijkstra(&map, start, end);
-    println!("Cost: {cost}");
+    // Part 1:
+    let mut map = [[true; MAP_SIZE]; MAP_SIZE];
+    for (x, y) in drops.iter().take(BLOCKS_TO_DROP) {
+        map[*y as usize][*x as usize] = false;
+    }
+    dump_map(&map);
+    let p1 = dijkstra(&map, start, end);
+    println!("Part 1: {:?}", p1);
+
+    // Part 2:
+    map = [[true; MAP_SIZE]; MAP_SIZE];
+    for (x, y) in drops.iter() {
+        map[*y as usize][*x as usize] = false;
+        match dijkstra(&map, start, end) {
+            Some(cost) => {
+                // println!("Still reachable in {cost}")
+            }
+            None => {
+                dump_map(&map);
+                println!("P2: First blocking byte: ({x},{y})");
+                break;
+            }
+        }
+    }
 }
 
 fn get_input_contents() -> String {
@@ -65,8 +89,8 @@ impl PartialOrd for Node {
     }
 }
 
-fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
-    let mut q: BinaryHeap<Node, Min, 512> = BinaryHeap::new();
+fn dijkstra(map: &Map, start: Coord, end: Coord) -> Option<u64> {
+    let mut q: BinaryHeap<Node, Min, 1024> = BinaryHeap::new();
     let mut processed = [[false; MAP_SIZE]; MAP_SIZE];
     let mut distance = [[u64::MAX; MAP_SIZE]; MAP_SIZE];
 
@@ -120,7 +144,9 @@ fn dijkstra(map: &Map, start: Coord, end: Coord) -> u64 {
         }
     }
 
-    println!("{:?}", distance);
-
-    min_end_cost
+    if min_end_cost < u64::MAX {
+        Some(min_end_cost)
+    } else {
+        None
+    }
 }
