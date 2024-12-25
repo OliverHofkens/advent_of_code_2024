@@ -1,4 +1,4 @@
 [workspace]
 
-members = ["common", "day_18_std"]
+members = ["common", "day_19_std"]
 resolver = "2"
