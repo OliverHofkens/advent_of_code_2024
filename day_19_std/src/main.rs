@@ -8,13 +8,14 @@ type Towels = Vec<Towel, 500>;
 
 const CACHE_KEY_SIZE: usize = 64;
 type CacheKey = String<CACHE_KEY_SIZE>;
-type Cache = FnvIndexMap<CacheKey, bool, 16384>;
+type Cache = FnvIndexMap<CacheKey, u64, 32768>;
 
 fn main() {
     let mut read_idx = 0usize;
     let mut towels = Towels::new();
     let mut cache = Cache::new();
-    let mut designs_made = 0usize;
+    let mut designs_made = 0u64;
+    let mut arrangements = 0u64;
 
     let inp = get_input_contents();
 
@@ -25,17 +26,17 @@ fn main() {
                 .map(|s| Towel::from_str(s).unwrap())
                 .collect();
         } else if read_idx > 1 {
-            if try_make_design(line, &towels, &mut cache) {
-                println!("Made design {}", line);
+            let ways = try_make_design(line, &towels, &mut cache);
+            if ways > 0 {
                 designs_made += 1;
-            } else {
-                println!("Can't make {}", line);
+                arrangements += ways;
             }
         }
         read_idx += 1;
     }
 
     println!("Designs made: {}", designs_made);
+    println!("Arrangements: {}", arrangements);
 }
 
 fn get_input_contents() -> std::string::String {
@@ -44,10 +45,9 @@ fn get_input_contents() -> std::string::String {
     fs::read_to_string(filename).expect("Failed to read file")
 }
 
-fn try_make_design(design: &str, towels: &Towels, cache: &mut Cache) -> bool {
-    // println!("Trying to make {design}");
+fn try_make_design(design: &str, towels: &Towels, cache: &mut Cache) -> u64 {
     if design.len() == 0 {
-        return true;
+        return 1;
     }
 
     if design.len() <= CACHE_KEY_SIZE {
@@ -56,15 +56,12 @@ fn try_make_design(design: &str, towels: &Towels, cache: &mut Cache) -> bool {
         }
     }
 
-    let mut res = false;
+    let mut res = 0u64;
 
     for towel in towels {
         if design.starts_with(towel.as_str()) {
             let rest = &design[towel.len()..];
-            if try_make_design(rest, towels, cache) {
-                res = true;
-                break;
-            }
+            res += try_make_design(rest, towels, cache);
         }
     }
 
